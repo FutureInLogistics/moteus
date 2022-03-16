@@ -270,7 +270,7 @@ int main(void) {
 
       options.fdcan_frame = true;
       options.bitrate_switch = true;
-      options.automatic_retransmission = true;
+      options.automatic_retransmission = false;
 
       return options;
     }());
