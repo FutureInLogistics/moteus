@@ -266,11 +266,11 @@ int main(void) {
       options.rd = MOTEUS_CAN_RD;
 
       options.slow_bitrate = 1000000;
-      options.fast_bitrate = 5000000;
+      options.fast_bitrate = 1000000;
 
       options.fdcan_frame = true;
       options.bitrate_switch = true;
-      options.automatic_retransmission = true;
+      options.automatic_retransmission = false;
 
       return options;
     }());
