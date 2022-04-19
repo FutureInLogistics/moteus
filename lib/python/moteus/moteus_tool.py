@@ -414,7 +414,7 @@ class Stream:
         print(json.dumps(await self.get_device_info(), indent=2))
 
     async def do_zero_offset(self):
-        servo_stats = await self.read_data("servo_stats")
+        servo_stats = await self.read_servo_stats()
         position_raw = servo_stats.position_raw
         await self.command(f"conf set motor.position_offset {-position_raw:d}")
         await self.command("conf write")
@@ -529,10 +529,14 @@ class Stream:
             if done:
                 break
 
-    async def check_for_fault(self):
+    async def read_servo_stats(self):
         servo_stats = await self.read_data("servo_stats")
         if servo_stats.mode == 1:
             raise RuntimeError(f"Controller reported fault: {int(servo_stats.fault)}")
+        return servo_stats
+
+    async def check_for_fault(self):
+        await self.read_servo_stats()
 
     async def restore_config(self, old_config):
         new_config = []
@@ -590,6 +594,9 @@ class Stream:
         print("This will move the motor, ensure it can spin freely!")
         await asyncio.sleep(2.0)
 
+        # Clear any faults that may be there.
+        await self.command("d stop")
+
         unwrapped_position_scale = \
             await self.read_config_double("motor.unwrapped_position_scale")
 
@@ -617,7 +624,7 @@ class Stream:
         #  2) The winding resistance
         #  3) The Kv rating of the motor.
         input_V = _round_nearest_4v(
-            (await self.read_data("servo_stats")).filt_bus_V)
+            (await self.read_servo_stats()).filt_bus_V)
 
         print("Starting calibration process")
         await self.check_for_fault()
@@ -787,7 +794,7 @@ class Stream:
 
         # Now get the servo_stats telemetry channel to read the D and Q
         # currents.
-        data = [extract(await self.read_data("servo_stats")) for _ in range(10)]
+        data = [extract(await self.read_servo_stats()) for _ in range(10)]
 
         # Stop the current.
         await self.command("d stop");
@@ -845,7 +852,7 @@ class Stream:
         await asyncio.sleep(1.0)
         await self.command(f"d stop")
         end = time.time()
-        data = await self.read_data("servo_stats")
+        data = await self.read_servo_stats()
 
         delta_time = end - start
         inductance = (cal_voltage /
@@ -934,7 +941,7 @@ class Stream:
         # Wait for it to stabilize.
         await asyncio.sleep(sleep_time)
 
-        data = await self.read_data("servo_stats")
+        data = await self.read_servo_stats()
         velocity = data.velocity
 
         return velocity

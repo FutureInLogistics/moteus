@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import datetime
+import os
 import subprocess
 import sys
 import os
@@ -26,6 +27,7 @@ def run(cmd):
 
 def main():
     outdir = sys.argv[1]
+    os.makedirs(outdir, exist_ok=True)
 
     # Make sure git is clean first.
     dirty = (subprocess.run("git diff-index --quiet HEAD --",

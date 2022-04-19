@@ -16,9 +16,6 @@
 
 namespace moteus {
 
-// The measured version of MOTEUS_HW_REV
-extern volatile uint8_t g_measured_hw_rev;
-
 // r1 silk
 // #define MOTEUS_HW_REV 0
 
@@ -168,14 +165,6 @@ constexpr int kCompatibleHwRev[] = {
 #define MOTEUS_MSENSE_5_AND_LATER PA_8
 #endif
 
-#ifndef MOTEUS_CURRENT_SENSE_OHM
-#if MOTEUS_HW_REV <= 1
-#error "Not supported"
-#elif MOTEUS_HW_REV >= 2
-#define MOTEUS_CURRENT_SENSE_OHM 0.0005f
-#endif
-#endif
-
 #ifndef MOTEUS_VSENSE_ADC_SCALE
 #define MOTEUS_VSENSE_ADC_SCALE_PRE6 0.00884f
 #define MOTEUS_VSENSE_ADC_SCALE_POST6 0.017947f
@@ -217,13 +206,6 @@ constexpr int kCompatibleHwRev[] = {
 
 #define MOTEUS_ABS_SCL PB_8
 #define MOTEUS_ABS_SDA PB_9
-
-#if defined(TARGET_STM32G4)
-#define MOTEUS_CCM_ATTRIBUTE __attribute__ ((section (".ccmram")))
-#else
-#error "Unknown target"
-#endif
-
 
 #define MOTEUS_MODEL_NUMBER ((MOTEUS_HW_REV) << 8 | 0x00)
 #define MOTEUS_FIRMWARE_VERSION 0x000104
