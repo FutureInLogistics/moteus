@@ -283,8 +283,7 @@ This bounds the overshoot of the measured velocity above
 recovered after a stall.  It acts on the measured velocity, so this
 value must be clearly larger than the velocity measurement noise,
 otherwise the torque will be modulated by noise when operating near
-the limit.  With a `velocity_limit` of 0, current that accelerates
-the motor is derated starting from standstill.
+the limit.
 
 While this derate is the active limit, fault code 106 is reported in
 position mode.
