@@ -900,18 +900,21 @@ class BldcServoControl {
     auto limit_q_velocity = [&](std::pair<float, errc> in_pair) -> std::pair<float, errc> MOTEUS_CCM_ATTRIBUTE {
       const auto in = in_pair.first;
       const float abs_velocity = std::abs(self().position_.velocity);
+      const bool is_max_velocity_derating =
+          abs_velocity >= self().config_.max_velocity;
       // Optionally also derate based on the commanded velocity_limit.
       const bool is_within_velocity_derate =
           abs_velocity >= velocity_limit &&
           std::isfinite(self().config_.velocity_limit_derate);
-      if ((abs_velocity < self().config_.max_velocity &&
-           !is_within_velocity_derate) ||
+      if ((!is_max_velocity_derating && !is_within_velocity_derate) ||
           self().position_.velocity * in < 0.0f) {
         return in_pair;
       }
       const float max_velocity_derate_fraction =
+          is_max_velocity_derating ?
           1.0f - ((abs_velocity - self().config_.max_velocity) /
-                  self().config_.max_velocity_derate);
+                  self().config_.max_velocity_derate) :
+          1.0f;
       const float velocity_limit_derate_fraction =
           is_within_velocity_derate ?
           1.0f - ((abs_velocity - velocity_limit) /
