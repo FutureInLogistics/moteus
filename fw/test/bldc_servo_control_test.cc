@@ -590,7 +590,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrent) {
 
   // Basic current control - should drive voltage output.
   ctx.control_.i_q_A = -999.0f;  // sentinel
-  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false, NaN);
 
   // Verify no fault occurred.
   BOOST_CHECK(ctx.status_.mode != kFault);
@@ -609,7 +609,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentFault) {
   sc.s = 0.0f;
   sc.c = 1.0f;
 
-  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode == kFault);
   BOOST_CHECK(ctx.status_.fault == errc::kMotorNotConfigured);
 
@@ -619,7 +619,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentFault) {
   ctx.motor_.poles = 14;
   ctx.position_.theta_valid = false;
 
-  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode == kFault);
   BOOST_CHECK(ctx.status_.fault == errc::kThetaInvalid);
 }
@@ -644,7 +644,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentLimits) {
   sc.c = 1.0f;
 
   // Request current above max_current_A - should be clamped.
-  ctx.ISR_DoCurrent(sc, 0.0f, 50.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 50.0f, 0.0f, false, NaN);
   BOOST_TEST(ctx.control_.i_q_A <= ctx.config_.max_current_A);
 }
 
@@ -698,7 +698,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlFetJunctionLimitCode) {
   // halfway between max_current_A (40A) and derate_current_A (-20A),
   // and reports the junction as the reason.
   ctx.UpdateFetDerate(25.0f, 0.5f);
-  ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false, NaN);
   BOOST_TEST(ctx.status_.effective_max_current_A == 10.0f,
              tt::tolerance(1e-3f));
   BOOST_TEST(ctx.control_.i_q_A <= 10.0f + 1e-3f);
@@ -718,7 +718,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlFetZeroMargin) {
   sc.c = 1.0f;
 
   ctx.UpdateFetDerate(40.0f, NaN);
-  ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false, NaN);
   BOOST_TEST(ctx.status_.effective_max_current_A == 40.0f);
   BOOST_TEST(ctx.control_.i_q_A == 30.0f, tt::tolerance(1e-3f));
 
@@ -726,7 +726,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlFetZeroMargin) {
   // margin, must not change that.
   ctx.UpdateFetDerate(
       40.0f, FetThermalModel::DerateFraction(100.0f, 150.0f, 0.0f));
-  ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false, NaN);
   BOOST_TEST(ctx.control_.i_q_A == 30.0f, tt::tolerance(1e-3f));
 
   // Nor must a derate_current_A at or above max_current_A, which
@@ -735,14 +735,14 @@ BOOST_AUTO_TEST_CASE(BldcServoControlFetZeroMargin) {
   for (const float derate_current_A : { 40.0f, 60.0f }) {
     ctx.config_.derate_current_A = derate_current_A;
     ctx.UpdateFetDerate(40.0f, NaN);
-    ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false);
+    ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false, NaN);
     BOOST_TEST(ctx.status_.effective_max_current_A == 40.0f);
     BOOST_TEST(ctx.control_.i_q_A == 30.0f, tt::tolerance(1e-3f));
   }
 
   // An unknown temperature still limits the current to zero.
   ctx.UpdateFetDerate(NaN, NaN);
-  ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 30.0f, 0.0f, false, NaN);
   BOOST_TEST(ctx.status_.effective_max_current_A == 0.0f);
 
   ctx.UpdateFetDerate(80.0f, NaN);
@@ -857,7 +857,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentFieldWeakening) {
   sc.s = 0.0f;
   sc.c = 1.0f;
 
-  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false, NaN);
 
   // Field weakening should inject negative d-axis current.
   BOOST_TEST(ctx.status_.fw.id_A < 0.0f);
@@ -1406,20 +1406,20 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDynamicInductance) {
 
   // Negative i_d should increase effective inductance (scale is negative,
   // min(i_d,0) is negative, so product is positive).
-  ctx.ISR_DoCurrent(sc, -10.0f, 0.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, -10.0f, 0.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode != kFault);
   // effective_L = 20e-6 + (-2e-6)*(-10) = 40e-6
   BOOST_TEST(ctx.status_.inductance_d_H == 40e-6f, tt::tolerance(1e-9f));
 
   // Positive i_d should use base inductance (min(i_d,0) = 0).
-  ctx.ISR_DoCurrent(sc, 5.0f, 0.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 5.0f, 0.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode != kFault);
   BOOST_TEST(ctx.status_.inductance_d_H == 20e-6f, tt::tolerance(1e-9f));
 
   // Zero scale should always yield base inductance.
   ctx.motor_.inductance_d_scale = 0.0f;
   ctx.UpdateDerivedMotorConstants();
-  ctx.ISR_DoCurrent(sc, -10.0f, 0.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, -10.0f, 0.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode != kFault);
   BOOST_TEST(ctx.status_.inductance_d_H == 20e-6f, tt::tolerance(1e-9f));
 }
