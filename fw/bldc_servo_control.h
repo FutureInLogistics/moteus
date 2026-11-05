@@ -855,9 +855,7 @@ class BldcServoControl {
   void ISR_DoCurrent(const SinCos& sin_cos, float i_d_A_in, float i_q_A_in,
                      float feedforward_velocity_rotor,
                      bool ignore_position_bounds,
-                     float velocity_limit =
-                         std::numeric_limits<float>::quiet_NaN())
-      MOTEUS_CCM_ATTRIBUTE {
+                     float velocity_limit) MOTEUS_CCM_ATTRIBUTE {
     if (self().motor_.poles == 0) {
       self().status_.mode = kFault;
       self().status_.fault = errc::kMotorNotConfigured;
@@ -903,23 +901,24 @@ class BldcServoControl {
       const auto in = in_pair.first;
       const float abs_velocity = std::abs(self().position_.velocity);
       // Optionally also derate based on the commanded velocity_limit.
-      // A NaN velocity_limit makes the comparison false.
-      const bool command_derate =
+      const bool is_within_velocity_derate =
           abs_velocity >= velocity_limit &&
           std::isfinite(self().config_.velocity_limit_derate);
-      if ((abs_velocity < self().config_.max_velocity && !command_derate) ||
+      if ((abs_velocity < self().config_.max_velocity &&
+           !is_within_velocity_derate) ||
           self().position_.velocity * in < 0.0f) {
         return in_pair;
       }
-      float derate_fraction =
+      const float max_velocity_derate_fraction =
           1.0f - ((abs_velocity - self().config_.max_velocity) /
                   self().config_.max_velocity_derate);
-      if (command_derate) {
-        derate_fraction = std::min(
-            derate_fraction,
-            1.0f - ((abs_velocity - velocity_limit) /
-                    self().config_.velocity_limit_derate));
-      }
+      const float velocity_limit_derate_fraction =
+          is_within_velocity_derate ?
+          1.0f - ((abs_velocity - velocity_limit) /
+                  self().config_.velocity_limit_derate) :
+          1.0f;
+      const float derate_fraction = std::min(
+          max_velocity_derate_fraction, velocity_limit_derate_fraction);
       const float current_limit =
           std::max(0.0f, derate_fraction * self().config_.max_current_A);
       const errc maybe_fault = derate_fraction < 1.0f ? errc::kLimitMaxVelocity : errc::kLimitMaxCurrent;
@@ -1240,7 +1239,8 @@ class BldcServoControl {
       if (!std::isnan(data->fixed_current_override)) {
         ISR_DoCurrent(sin_cos,
                       data->fixed_current_override,
-                      0.0f, 0.0f, data->ignore_position_bounds);
+                      0.0f, 0.0f, data->ignore_position_bounds,
+                      std::numeric_limits<float>::quiet_NaN());
       } else {
         const float fixed_voltage =
             std::isnan(data->fixed_voltage_override) ?
@@ -1492,7 +1492,8 @@ class BldcServoControl {
   void ISR_DoStopped(const SinCos& sin_cos) MOTEUS_CCM_NOINLINE_ATTRIBUTE {
     if (self().status_.cooldown_count) {
       if (self().status_.cooldown_count > self().config_.cooldown_brake) {
-        ISR_DoCurrent(sin_cos, 0.0f, 0.0f, 0.0f, false);
+        ISR_DoCurrent(sin_cos, 0.0f, 0.0f, 0.0f, false,
+                      std::numeric_limits<float>::quiet_NaN());
       } else {
         self().DoHiz();
       }
@@ -1782,7 +1783,8 @@ class BldcServoControl {
       }
       case kCurrent: {
         ISR_DoCurrent(sin_cos, data->i_d_A, data->i_q_A, 0.0f,
-                      data->ignore_position_bounds);
+                      data->ignore_position_bounds,
+                      std::numeric_limits<float>::quiet_NaN());
         break;
       }
       case kPosition: {
