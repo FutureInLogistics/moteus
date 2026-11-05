@@ -917,11 +917,17 @@ class BldcServoControl {
           1.0f - ((abs_velocity - velocity_limit) /
                   self().config_.velocity_limit_derate) :
           1.0f;
-      const float derate_fraction = std::min(
-          max_velocity_derate_fraction, velocity_limit_derate_fraction);
+      const bool velocity_limit_stricter =
+          velocity_limit_derate_fraction < max_velocity_derate_fraction;
+      const float derate_fraction =
+          velocity_limit_stricter ?
+          velocity_limit_derate_fraction : max_velocity_derate_fraction;
       const float current_limit =
           std::max(0.0f, derate_fraction * self().config_.max_current_A);
-      const errc maybe_fault = derate_fraction < 1.0f ? errc::kLimitMaxVelocity : errc::kLimitMaxCurrent;
+      const errc maybe_fault =
+          derate_fraction >= 1.0f ? errc::kLimitMaxCurrent :
+          velocity_limit_stricter ? errc::kLimitVelocityLimit :
+          errc::kLimitMaxVelocity;
       return LimitCode(in, -current_limit, current_limit,
                        maybe_fault, in_pair.second);
     };

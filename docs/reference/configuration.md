@@ -286,6 +286,9 @@ otherwise the torque will be modulated by noise when operating near
 the limit.  With a `velocity_limit` of 0, current that accelerates
 the motor is derated starting from standstill.
 
+While this derate is the active limit, fault code 106 is reported in
+position mode.
+
 NaN (the default) disables this feature.
 
 ## `servo.rotation_*`

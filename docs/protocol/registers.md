@@ -248,6 +248,7 @@ the output power of the controller.
 * 101 - `servo.motor_fault_temperature`
 * 102 - the commanded maximum torque
 * 103 - `servopos.position_min` or `servopos.position_max`
+* 106 - the commanded velocity limit, see `servo.velocity_limit_derate`
 
 
 ### 0x010 / 0x011 / 0x012 - PWM phase A / B / C

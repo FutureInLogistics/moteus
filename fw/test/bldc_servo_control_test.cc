@@ -713,7 +713,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentVelocityLimitDerate) {
       BOOST_TEST(ctx.control_.i_q_A == tc.expected_i_q,
                  tt::tolerance(1e-4f));
       if (tc.expected_i_q != tc.i_q_in) {
-        BOOST_CHECK(ctx.status_.fault == errc::kLimitMaxVelocity);
+        BOOST_CHECK(ctx.status_.fault == errc::kLimitVelocityLimit);
       }
     }
   }
@@ -723,6 +723,12 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentVelocityLimitDerate) {
   ctx.position_.velocity = 110.0f;
   ctx.ISR_DoCurrent(sc, 0.0f, 8.0f, 0.0f, false, 90.0f);
   BOOST_TEST(ctx.control_.i_q_A == 5.0f, tt::tolerance(1e-4f));
+  BOOST_CHECK(ctx.status_.fault == errc::kLimitMaxVelocity);
+
+  // When velocity_limit is the stricter one, it is reported.
+  ctx.ISR_DoCurrent(sc, 0.0f, 8.0f, 0.0f, false, 50.0f);
+  BOOST_TEST(ctx.control_.i_q_A == 4.0f, tt::tolerance(1e-4f));
+  BOOST_CHECK(ctx.status_.fault == errc::kLimitVelocityLimit);
 }
 
 BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentFieldWeakening) {

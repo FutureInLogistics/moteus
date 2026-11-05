@@ -124,6 +124,7 @@ FAULT_CODE_DESCRIPTIONS = {
     103: "limit: servopos limit",
     104: "limit: flux braking",
     105: "limit: field weakening",
+    106: "limit: velocity_limit",
 }
 
 
