@@ -854,7 +854,10 @@ class BldcServoControl {
 
   void ISR_DoCurrent(const SinCos& sin_cos, float i_d_A_in, float i_q_A_in,
                      float feedforward_velocity_rotor,
-                     bool ignore_position_bounds) MOTEUS_CCM_ATTRIBUTE {
+                     bool ignore_position_bounds,
+                     float velocity_limit =
+                         std::numeric_limits<float>::quiet_NaN())
+      MOTEUS_CCM_ATTRIBUTE {
     if (self().motor_.poles == 0) {
       self().status_.mode = kFault;
       self().status_.fault = errc::kMotorNotConfigured;
@@ -899,13 +902,24 @@ class BldcServoControl {
     auto limit_q_velocity = [&](std::pair<float, errc> in_pair) -> std::pair<float, errc> MOTEUS_CCM_ATTRIBUTE {
       const auto in = in_pair.first;
       const float abs_velocity = std::abs(self().position_.velocity);
-      if (abs_velocity < self().config_.max_velocity ||
+      // Optionally also derate based on the commanded velocity_limit.
+      // A NaN velocity_limit makes the comparison false.
+      const bool command_derate =
+          abs_velocity >= velocity_limit &&
+          std::isfinite(self().config_.velocity_limit_derate);
+      if ((abs_velocity < self().config_.max_velocity && !command_derate) ||
           self().position_.velocity * in < 0.0f) {
         return in_pair;
       }
-      const float derate_fraction =
+      float derate_fraction =
           1.0f - ((abs_velocity - self().config_.max_velocity) /
                   self().config_.max_velocity_derate);
+      if (command_derate) {
+        derate_fraction = std::min(
+            derate_fraction,
+            1.0f - ((abs_velocity - velocity_limit) /
+                    self().config_.velocity_limit_derate));
+      }
       const float current_limit =
           std::max(0.0f, derate_fraction * self().config_.max_current_A);
       const errc maybe_fault = derate_fraction < 1.0f ? errc::kLimitMaxVelocity : errc::kLimitMaxCurrent;
@@ -1402,7 +1416,8 @@ class BldcServoControl {
     ISR_DoCurrent(
         sin_cos, d_A, q_A,
         velocity_command * self().inv_rotor_to_output_ratio_,
-        data->ignore_position_bounds);
+        data->ignore_position_bounds,
+        data->velocity_limit);
   }
 
   void ISR_DoStayWithinBounds(const SinCos& sin_cos,
