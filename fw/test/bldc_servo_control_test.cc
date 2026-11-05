@@ -591,7 +591,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrent) {
 
   // Basic current control - should drive voltage output.
   ctx.control_.i_q_A = -999.0f;  // sentinel
-  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false, NaN);
 
   // Verify no fault occurred.
   BOOST_CHECK(ctx.status_.mode != kFault);
@@ -610,7 +610,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentFault) {
   sc.s = 0.0f;
   sc.c = 1.0f;
 
-  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode == kFault);
   BOOST_CHECK(ctx.status_.fault == errc::kMotorNotConfigured);
 
@@ -620,7 +620,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentFault) {
   ctx.motor_.poles = 14;
   ctx.position_.theta_valid = false;
 
-  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode == kFault);
   BOOST_CHECK(ctx.status_.fault == errc::kThetaInvalid);
 }
@@ -646,8 +646,89 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentLimits) {
   sc.c = 1.0f;
 
   // Request current above max_current_A - should be clamped.
-  ctx.ISR_DoCurrent(sc, 0.0f, 50.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 50.0f, 0.0f, false, NaN);
   BOOST_TEST(ctx.control_.i_q_A <= ctx.config_.max_current_A);
+}
+
+BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentVelocityLimitDerate) {
+  Context ctx;
+  ctx.status_.filt_bus_V = 24.0f;
+  ctx.status_.filt_1ms_bus_V = 24.0f;
+  ctx.status_.filt_fet_temp_C = 25.0f;
+  ctx.status_.max_power_W = 500.0f;
+  ctx.position_.epoch = 0;
+  ctx.isr_motor_position_epoch_ = 0;
+  ctx.position_.theta_valid = true;
+  ctx.motor_.poles = 14;
+  ctx.motor_.resistance_ohm = 0.1f;
+  ctx.config_.max_current_A = 10.0f;
+  ctx.config_.max_velocity = 100.0f;
+  ctx.config_.max_velocity_derate = 20.0f;
+  ctx.motor_position_config_val.output.sign = 1;
+
+  SinCos sc;
+  sc.s = 0.0f;
+  sc.c = 1.0f;
+
+  struct TestCase {
+    float band;
+    float velocity_limit;
+    float velocity;
+    float i_q_in;
+    float expected_i_q;
+  };
+
+  const TestCase test_cases[] = {
+    // Disabled: no change regardless of velocity_limit.
+    { NaN, 2.0f, 3.0f, 8.0f, 8.0f },
+    // NaN velocity_limit: no change.
+    { 1.0f, NaN, 3.0f, 8.0f, 8.0f },
+    // Below velocity_limit: no change.
+    { 1.0f, 2.0f, 1.9f, 8.0f, 8.0f },
+    // Inside the band: linear derate of max_current_A.
+    { 1.0f, 2.0f, 2.25f, 8.0f, 7.5f },
+    { 1.0f, 2.0f, 2.5f, 8.0f, 5.0f },
+    { 1.0f, 2.0f, -2.5f, -8.0f, -5.0f },
+    // At and beyond the end of the band: no driving current.
+    { 1.0f, 2.0f, 3.0f, 8.0f, 0.0f },
+    { 1.0f, 2.0f, 4.0f, 8.0f, 0.0f },
+    { 1.0f, 2.0f, -4.0f, -8.0f, 0.0f },
+    // Braking current is never derated.
+    { 1.0f, 2.0f, 4.0f, -8.0f, -8.0f },
+    { 1.0f, 2.0f, -4.0f, 8.0f, 8.0f },
+    // velocity_limit == 0 still allows full current at standstill.
+    { 1.0f, 0.0f, 0.0f, 8.0f, 8.0f },
+    { 1.0f, 0.0f, 0.5f, 8.0f, 5.0f },
+  };
+
+  for (const auto& tc : test_cases) {
+    BOOST_TEST_CONTEXT("band=" << tc.band
+                       << " vlim=" << tc.velocity_limit
+                       << " v=" << tc.velocity
+                       << " i_q=" << tc.i_q_in) {
+      ctx.config_.velocity_limit_derate = tc.band;
+      ctx.position_.velocity = tc.velocity;
+      ctx.ISR_DoCurrent(sc, 0.0f, tc.i_q_in, 0.0f, false,
+                        tc.velocity_limit);
+      BOOST_TEST(ctx.control_.i_q_A == tc.expected_i_q,
+                 tt::tolerance(1e-4f));
+      if (tc.expected_i_q != tc.i_q_in) {
+        BOOST_CHECK(ctx.status_.fault == errc::kLimitVelocityLimit);
+      }
+    }
+  }
+
+  // The stricter of max_velocity and velocity_limit derates applies.
+  ctx.config_.velocity_limit_derate = 100.0f;
+  ctx.position_.velocity = 110.0f;
+  ctx.ISR_DoCurrent(sc, 0.0f, 8.0f, 0.0f, false, 90.0f);
+  BOOST_TEST(ctx.control_.i_q_A == 5.0f, tt::tolerance(1e-4f));
+  BOOST_CHECK(ctx.status_.fault == errc::kLimitMaxVelocity);
+
+  // When velocity_limit is the stricter one, it is reported.
+  ctx.ISR_DoCurrent(sc, 0.0f, 8.0f, 0.0f, false, 50.0f);
+  BOOST_TEST(ctx.control_.i_q_A == 4.0f, tt::tolerance(1e-4f));
+  BOOST_CHECK(ctx.status_.fault == errc::kLimitVelocityLimit);
 }
 
 BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentFieldWeakening) {
@@ -685,7 +766,7 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDoCurrentFieldWeakening) {
   sc.s = 0.0f;
   sc.c = 1.0f;
 
-  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 0.0f, 5.0f, 0.0f, false, NaN);
 
   // Field weakening should inject negative d-axis current.
   BOOST_TEST(ctx.status_.fw.id_A < 0.0f);
@@ -1217,20 +1298,20 @@ BOOST_AUTO_TEST_CASE(BldcServoControlDynamicInductance) {
 
   // Negative i_d should increase effective inductance (scale is negative,
   // min(i_d,0) is negative, so product is positive).
-  ctx.ISR_DoCurrent(sc, -10.0f, 0.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, -10.0f, 0.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode != kFault);
   // effective_L = 20e-6 + (-2e-6)*(-10) = 40e-6
   BOOST_TEST(ctx.status_.inductance_d_H == 40e-6f, tt::tolerance(1e-9f));
 
   // Positive i_d should use base inductance (min(i_d,0) = 0).
-  ctx.ISR_DoCurrent(sc, 5.0f, 0.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, 5.0f, 0.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode != kFault);
   BOOST_TEST(ctx.status_.inductance_d_H == 20e-6f, tt::tolerance(1e-9f));
 
   // Zero scale should always yield base inductance.
   ctx.motor_.inductance_d_scale = 0.0f;
   ctx.UpdateDerivedMotorConstants();
-  ctx.ISR_DoCurrent(sc, -10.0f, 0.0f, 0.0f, false);
+  ctx.ISR_DoCurrent(sc, -10.0f, 0.0f, 0.0f, false, NaN);
   BOOST_CHECK(ctx.status_.mode != kFault);
   BOOST_TEST(ctx.status_.inductance_d_H == 20e-6f, tt::tolerance(1e-9f));
 }

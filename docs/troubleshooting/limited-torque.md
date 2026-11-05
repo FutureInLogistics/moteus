@@ -29,6 +29,7 @@ As of firmware version 2025-07-21, the firmware will report if a factor is limit
 - **103 position_bounds**: Position bounds: If the current position is outside of `servopos.position_min` and `servopos.position_max`, then torque is limited in the direction that would push the motor further outside the bounds.
 - **104 flux_braking**: Flux braking: The input voltage is too high and the controller is dissipating energy in the motor windings.
 - **105 field_weakening**: Field weakening: The motor is above its base speed, so the controller is applying negative D axis current to reach the commanded speed, which reduces the torque available.  This is configured with `servo.fw.enable` and related `servo.fw.*` parameters.
+- **106 velocity_limit**: Velocity limit: The observed velocity exceeds the `velocity_limit` of the current position mode command, so torque is limited in the direction that would cause the velocity to increase.  This is only active if `servo.velocity_limit_derate` is configured.
 
 ### Other possibilities
 
