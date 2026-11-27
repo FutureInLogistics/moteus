@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -1989,10 +1989,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#servodefault_velocity_limit-servodefault_accel_limit" class="md-nav__link">
+  <a href="#servodefault_velocity_limit-servodefault_accel_limit-servodefault_jerk_limit" class="md-nav__link">
     <span class="md-ellipsis">
       
-        servo.default_velocity_limit / servo.default_accel_limit
+        servo.default_velocity_limit / servo.default_accel_limit / servo.default_jerk_limit
       
     </span>
   </a>
@@ -2125,6 +2125,39 @@
     <span class="md-ellipsis">
       
         servo.fault_temperature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#servofet_junction_temperature_margin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        servo.fet_junction_temperature_margin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#servofet_junction_fault_temperature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        servo.fet_junction_fault_temperature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#servofet_junction_hot_start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        servo.fet_junction_hot_start
       
     </span>
   </a>
@@ -3320,10 +3353,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#servodefault_velocity_limit-servodefault_accel_limit" class="md-nav__link">
+  <a href="#servodefault_velocity_limit-servodefault_accel_limit-servodefault_jerk_limit" class="md-nav__link">
     <span class="md-ellipsis">
       
-        servo.default_velocity_limit / servo.default_accel_limit
+        servo.default_velocity_limit / servo.default_accel_limit / servo.default_jerk_limit
       
     </span>
   </a>
@@ -3456,6 +3489,39 @@
     <span class="md-ellipsis">
       
         servo.fault_temperature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#servofet_junction_temperature_margin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        servo.fet_junction_temperature_margin
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#servofet_junction_fault_temperature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        servo.fet_junction_fault_temperature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#servofet_junction_hot_start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        servo.fet_junction_hot_start
       
     </span>
   </a>
@@ -4189,36 +4255,45 @@ during calibration by the <code>--cal-bw-hz</code> option to <code>moteus_tool</
 <h2 id="servomax_current_desired_rate"><code>servo.max_current_desired_rate</code><a class="headerlink" href="#servomax_current_desired_rate" title="Permanent link">&para;</a></h2>
 <p>The maximum rate at which the desired current can change, in A/s.  0
 means unlimited.</p>
-<h2 id="servodefault_velocity_limit-servodefault_accel_limit"><code>servo.default_velocity_limit</code> / <code>servo.default_accel_limit</code><a class="headerlink" href="#servodefault_velocity_limit-servodefault_accel_limit" title="Permanent link">&para;</a></h2>
+<h2 id="servodefault_velocity_limit-servodefault_accel_limit-servodefault_jerk_limit"><code>servo.default_velocity_limit</code> / <code>servo.default_accel_limit</code> / <code>servo.default_jerk_limit</code><a class="headerlink" href="#servodefault_velocity_limit-servodefault_accel_limit-servodefault_jerk_limit" title="Permanent link">&para;</a></h2>
 <p>Limits to be placed on trajectories generated within moteus.  If
-either is <code>nan</code>, then that limit is unset.  The limits may also be
-overriden individually on a per command basis.  The semantics of the
-limits are as follows:</p>
+any is <code>nan</code>, then that limit is unset.  The limits may also be
+overriden individually on a per command basis.  The semantics
+depend on which limits are set.</p>
 <ul>
 <li>
-<p><em>Neither set (both nan)</em> In this case, position and velocity
-  commands take immediate effect.  The control position will be
-  initialized to the command position, and the control velocity will
-  be set to the command velocity.  The control position will advance
-  at the given velocity indefinitely, or until the command stop
-  position is reached.</p>
+<p><em>None set (all nan)</em>: position and velocity commands take immediate
+  effect.  The control position will be initialized to the command
+  position, and the control velocity will be set to the command
+  velocity.  The control position will advance at the given velocity
+  indefinitely, or until the command stop position is reached.</p>
 </li>
 <li>
-<p><em>Either set</em>: If x_c is the command position, v_c is the command
-  velocity, and t is the time from receipt of the command, the
-  semantics can be described as: "match the trajectory defined by x =
-  x_c + v_c * t".</p>
+<p><em>jerk_limit set</em>: Acceleration changes no faster than the given
+  rate, following a triangular or trapezoidal path.  Velocity follows
+  an S curve.  A trajectory is planned to finish slightly more
+  conservatively than the limits strictly permit, and thus takes
+  slightly longer than a time optimal one.</p>
+</li>
+<li>
+<p><em>accel_limit set</em>: If set, the acceleration is capped at the given
+  value in either the positive or negative direction.  If no jerk
+  limit is set, then acceleration switches instantaneously between
+  [-accel_limit, 0, and accel_limit].  If a jerk limit is configured,
+  then acceleration will follow a trapezoidal trajectory.</p>
+</li>
+<li>
+<p><em>velocity_limit set</em>: If set, then velocity is capped at the given
+  value in either the positive or negative direction.  If neither jerk
+  nor acceleration limits are set, then velocity switches
+  instantaneously between [-velocity_limit, 0, velocity_limit].  If
+  either jerk or acceleration limits are configured, they constrain
+  changes in velocity.</p>
 </li>
 </ul>
-<p>If the acceleration limit is set, the above is effected by
-  commanding accelerations of either [-accel_limit, 0, accel_limit].
-  If an acceleration limit is not set, then the velocity will change
-  instantaneously.</p>
-<p>If the velocity limit is set, then the intermediate velocities will
-  obey "-velocity_limit &lt; velocity &lt; +velocity_limit".  If it is not
-  set, then the velocities may grow to arbitrary magnitude.</p>
-<p>NOTE: This is limited internally to be no more than
-<code>servo.max_velocity</code>.</p>
+<p>NOTE: <code>velocity_limit</code> is limited internally to be no more than
+<code>servo.max_velocity</code>.  If any limit is set and <code>velocity_limit</code> is
+not, then <code>servo.max_velocity</code> is used as the velocity limit.</p>
 <h2 id="servoinertia_feedforward"><code>servo.inertia_feedforward</code><a class="headerlink" href="#servoinertia_feedforward" title="Permanent link">&para;</a></h2>
 <p>When set to non-zero, and acceleration limits are currently in effect,
 this will apply a feedforward torque equal to the current acceleration
@@ -4291,6 +4366,44 @@ degrees Celsius of <code>servo.fault_temperature</code>.</p>
 <h2 id="servofault_temperature"><code>servo.fault_temperature</code><a class="headerlink" href="#servofault_temperature" title="Permanent link">&para;</a></h2>
 <p>If the temperature reaches this value, a fault is triggered and all
 torque is stopped.</p>
+<h2 id="servofet_junction_temperature_margin"><code>servo.fet_junction_temperature_margin</code><a class="headerlink" href="#servofet_junction_temperature_margin" title="Permanent link">&para;</a></h2>
+<p>Torque begins to be limited when the hottest estimated FET junction
+temperature is within this many degrees Celsius of
+<code>servo.fet_junction_fault_temperature</code>.  With a value of 0 or less,
+the junction estimate does not limit torque before it faults.</p>
+<h2 id="servofet_junction_fault_temperature"><code>servo.fet_junction_fault_temperature</code><a class="headerlink" href="#servofet_junction_fault_temperature" title="Permanent link">&para;</a></h2>
+<p>If the hottest estimated FET junction temperature reaches this value,
+a fault is triggered and all torque is stopped.  <code>nan</code> disables
+limiting and faulting on the junction estimate.  The default is 165C
+on the moteus-r4, moteus-c1 and moteus-n1, and 140C on the moteus-x1,
+whose FETs have absolute maximum junction temperatures of 175C and
+150C respectively.  The estimate's
+constants are chosen so that, with the default derating, the true
+junction stays at least 10C below that maximum.</p>
+<p>The estimate starts hot at power up, at the start of derating, and
+relaxes over about a minute: nothing is known of the FETs' state when
+the controller starts, and a board restarted while hot could otherwise
+take a full cold board's heating on top of hot FETs.  Until it has
+relaxed, less current is available for short pulses.  See
+<code>servo.fet_junction_hot_start</code> to disable this.</p>
+<p>The junction temperature of each FET is estimated from the phase
+currents, bus voltage, gate drive strength, and the board thermistor.
+The estimate, along with the estimated loss in each FET, is reported
+in the <code>fet_model</code> telemetry.  Torque limiting and the
+over-temperature fault apply to whichever is further through its
+derating band: the thermistor relative to <code>servo.fault_temperature</code>,
+or the hottest estimated junction relative to
+<code>servo.fet_junction_fault_temperature</code>.  While limiting, the fault
+register reports 100 for the thermistor and 106 for the junction
+estimate.  A fault reports 38 for the thermistor and 51 for the
+junction estimate.</p>
+<h2 id="servofet_junction_hot_start"><code>servo.fet_junction_hot_start</code><a class="headerlink" href="#servofet_junction_hot_start" title="Permanent link">&para;</a></h2>
+<p>If true (the default), the FET junction temperature estimate starts at
+power up at the start of its derating band, as described under
+<code>servo.fet_junction_fault_temperature</code>.  If false, it starts at the
+board thermistor's first reading, so that full current is available
+immediately after power up.  This is only safe if the controller is
+never restarted while its FETs may still be hot from operation.</p>
 <h2 id="servoenable_motor_temperature"><code>servo.enable_motor_temperature</code><a class="headerlink" href="#servoenable_motor_temperature" title="Permanent link">&para;</a></h2>
 <p>If true, then the motor temperature will be sensed via the TEMP pads
 on the board.</p>
@@ -4377,10 +4490,11 @@ The allowable values are a subset of the top level modes.</p>
 <li>12 - "zero velocity"</li>
 <li>15 - "brake"</li>
 </ul>
-<p>For mode 10, <code>servo.default_velocity_limit</code> and
-<code>servo.default_accel_limit</code> are used to control the deceleration
-profile to zero speed.  The default PID gains are used.  The only
-limit on torque when in this timeout mode is <code>servo.max_current_A</code>.</p>
+<p>For mode 10, <code>servo.default_velocity_limit</code>,
+<code>servo.default_accel_limit</code>, and <code>servo.default_jerk_limit</code> are used
+to control the deceleration profile to zero speed.  The default PID
+gains are used.  The only limit on torque when in this timeout mode
+is <code>servo.max_current_A</code>.</p>
 <h2 id="servomotor_thermistor_ohm"><code>servo.motor_thermistor_ohm</code><a class="headerlink" href="#servomotor_thermistor_ohm" title="Permanent link">&para;</a></h2>
 <p>The resistance of any attached motor NTC thermistor as measured at 25C
 in ohms.</p>
@@ -4667,7 +4781,7 @@ the output.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.indexes", "navigation.instant", "navigation.tracking", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../javascripts/iv-viewer.min.js"></script>
       
